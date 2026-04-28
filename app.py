@@ -1,106 +1,105 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
-import io
-import random
+import io, requests, os
 
-# --- 1. 页面配置 ---
-st.set_page_config(page_title="魔力情绪屋", page_icon="🧪")
+# 1. 字体处理
+FONT_URL = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansCJKsc-Regular.otf"
+FONT_PATH = "font.otf"
 
-# --- 2. 密钥读取 ---
-try:
-    api_key = st.secrets["DEEPSEEK_API_KEY"]
-except:
-    st.error("请在 Secrets 中配置 DEEPSEEK_API_KEY")
-    st.stop()
+@st.cache_resource
+def load_font():
+    if not os.path.exists(FONT_PATH):
+        try:
+            r = requests.get(FONT_URL)
+            with open(FONT_PATH, "wb") as f: f.write(r.content)
+        except: return None
+    return FONT_PATH
 
-# --- 3. 辅助函数：生成海报 ---
-def generate_poster(label, content):
-    # 创建一个渐变背景
-    img = Image.new('RGB', (800, 1000), color=(30, 30, 50))
-    d = ImageDraw.Draw(img)
-    
-    # 简单的装饰线条
-    d.rectangle([20, 20, 780, 980], outline=(100, 100, 250), width=5)
-    
-    # 写入文字 (这里由于服务器字体限制，默认使用基础字体，部署时可上传自定义中文字体)
-    try:
-        # 尝试写入标题和标签
-        d.text((400, 150), "🌙 灵感疗愈处方", fill=(200, 200, 255), anchor="mm")
-        d.text((400, 300), f"【{label}】", fill=(255, 215, 0), anchor="mm")
-        
-        # 将正文简单分行显示
-        margin = 100
-        offset = 450
-        for line in content[:150] + "...": # 截取部分文字防止溢出
-             d.text((margin, offset), line, fill=(255, 255, 255))
-             offset += 30
-    except:
-        d.text((100, 450), "Poster Generated", fill=(255, 255, 255))
+# 2. 界面样式
+st.set_page_config(page_title="情绪魔法实验室", page_icon="🧪")
+st.markdown("""
+    <style>
+    .stTextArea textarea {border-radius:15px; border: 1px solid #4A90E2;}
+    .stButton button {background: linear-gradient(45deg, #6a11cb, #2575fc); color:white; border-radius:25px; font-weight:bold;}
+    </style>
+""", unsafe_allow_html=True)
 
-    # 转为字节流供下载
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-# --- 4. 界面设计 ---
 st.title("🧪 情绪魔法实验室")
-st.markdown("把你的压力投进烧杯，炼制一份灵魂处方。")
+st.caption("将碎掉的情绪，炼成电影与音乐的诗")
 
-user_input = st.text_area("在此投递你的情绪片段...", placeholder="例如：我想逃离这里，去一个没有信号的森林...")
+# 3. AI 逻辑（更新了提示词）
+client = OpenAI(api_key=st.secrets["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
+user_input = st.text_area("此刻的心情碎语...", placeholder="比如：窗外在下雨，想起了一些往事...")
 
 if st.button("开始炼制魔法药水 🔮"):
     if not user_input:
-        st.warning("药炉不能为空哦。")
+        st.warning("药炉还是空的哦，请输入心情。")
     else:
-        client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-        
-        # 魔法药水加载动画
-        status_text = st.empty()
-        progress_bar = st.progress(0)
-        magic_phases = ["正在研磨忧虑...", "正在加入月光粉末...", "正在搅拌情绪涟漪...", "药水正在沸腾..."]
-        
-        for i in range(100):
-            if i % 25 == 0:
-                status_text.text(magic_phases[i//25])
-            progress_bar.progress(i + 1)
-            import time
-            time.sleep(0.02)
-        
-        try:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "你是一位炼金术士般的心理学导师。给用户一个极简的文学标签（4-8字），然后给出一份三部分的'药方'。"},
-                    {"role": "user", "content": user_input}
-                ]
-            )
-            
-            result = response.choices[0].message.content
-            # 简单假设第一行是标签（这取决于AI的返回格式，你可以进一步微调提示词）
-            label = "我的情绪处方" 
-            
-            # 视觉呈现
-            st.snow() # 下雪特效代替气球，更有仪式感
-            st.success("药水炼制成功！")
-            
-            # 使用容器美化输出
-            with st.container():
-                st.markdown(f"""
-                <div style="background-color:#1e1e32; padding:20px; border-radius:15px; border-left: 5px solid #7b61ff">
-                    <h2 style="color:#ffcc00">✨ 处方已送达</h2>
-                    <p style="color:#ffffff; line-height:1.6">{result}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # --- 5. 海报生成与下载 ---
-            st.markdown("### 📸 专属情绪海报")
-            poster_data = generate_poster(label, result)
-            st.image(poster_data, caption="右键另存为即可分享")
-            st.download_button(label="📥 点击下载高清海报", data=poster_data, file_name="my_therapy_poster.png", mime="image/png")
+        with st.spinner("✨ 正在检索光影与乐章..."):
+            try:
+                # 提示词升级：要求电影、音乐和短标签
+                prompt = f"""
+                用户心情：'{user_input}'
+                请以此炼制药方，严格遵守格式：
+                1. [标签]：4-6个字的诗意短语。
+                2. [电影]：推荐一部治愈此情绪的电影名及一句话推荐。
+                3. [音乐]：推荐一首适合此时听的歌曲名及氛围描述。
+                4. [寄语]：一句温柔的短句。
+                """
+                
+                res = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "system", "content": "你是一位精通电影和音乐的情绪疗愈师，说话简练且有高级感。"},
+                              {"role": "user", "content": prompt}]
+                )
+                text = res.choices[0].message.content
+                st.success("炼制完成")
+                st.info(text)
 
-        except Exception as e:
-            st.error(f"炼金失败: {e}")
+                # 4. 海报绘制优化
+                f_path = load_font()
+                img = Image.new('RGB', (600, 850), color='#121212')
+                draw = ImageDraw.Draw(img)
+                
+                # 渐变边框效果
+                draw.rectangle([15, 15, 585, 835], outline="#3A3A3A", width=1)
+                draw.rectangle([25, 25, 575, 825], outline="#4A90E2", width=2)
+                
+                try:
+                    t_font = ImageFont.truetype(f_path, 45) if f_path else ImageFont.load_default()
+                    c_font = ImageFont.truetype(f_path, 22) if f_path else ImageFont.load_default()
+                    
+                    # 写入标题
+                    draw.text((300, 100), "情绪处方清单", font=t_font, fill="#4A90E2", anchor="mm")
+                    
+                    # 自动换行写入
+                    y = 200
+                    lines = text.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if not line: continue
+                        
+                        # 为不同的部分上色
+                        fill_color = "#FFFFFF"
+                        if "[标签]" in line: fill_color = "#FFCC00"
+                        elif "[电影]" in line or "[音乐]" in line: fill_color = "#00FFCC"
+                        
+                        # 简单的自动换行处理（每行约18个汉字）
+                        for i in range(0, len(line), 18):
+                            draw.text((60, y), line[i:i+18], font=c_font, fill=fill_color)
+                            y += 40
+                        y += 15 # 段落间距
+                    
+                    draw.text((300, 780), "✦ 每一阵风都有它的节奏 ✦", font=c_font, fill="#555555", anchor="mm")
+                except:
+                    draw.text((100, 400), "Poster Error", fill="white")
 
-st.markdown("---")
-st.caption("“万物皆有裂痕，那是光照进来的地方。”")
+                st.image(img)
+                
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                st.download_button("📥 保存这张疗愈书签", buf.getvalue(), "healing_card.png", "image/png")
+                
+            except Exception as e:
+                st.error(f"炼制失败：{e}")
