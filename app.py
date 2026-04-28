@@ -1,132 +1,92 @@
 import streamlit as st
 from openai import OpenAI
-from PIL import Image, ImageDraw, ImageFont
-import io, requests, os
+import random
 
-# 1. 字体与配置
-FONT_URL = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansCJKsc-Regular.otf"
-FONT_PATH = "font.otf"
+# 1. 界面与 Secrets 配置
+st.set_page_config(page_title="Echoes of Soul", page_icon="🌑", layout="centered")
 
-@st.cache_resource
-def load_font():
-    if not os.path.exists(FONT_PATH):
-        try:
-            r = requests.get(FONT_URL)
-            with open(FONT_PATH, "wb") as f: f.write(r.content)
-        except: return None
-    return FONT_PATH
+try:
+    ds_key = st.secrets["DEEPSEEK_API_KEY"]
+except:
+    st.error("密钥缺失，请检查 Secrets 中的 DEEPSEEK_API_KEY")
+    st.stop()
 
-# 2. 高级感 CSS：自定义“绒绒”雪花动画
-def trigger_soft_snow():
-    st.markdown("""
-        <style>
-        .snowflake { color: #fff; font-size: 1.2em; font-family: Arial; text-shadow: 0 0 5px #fff; opacity: 0.8; }
-        @-webkit-keyframes snowflakes-fall{0%{top:-10%}100%{top:100%}}
-        @-webkit-keyframes snowflakes-shake{0%{-webkit-transform:translateX(0px);transform:translateX(0px)}50%{-webkit-transform:translateX(80px);transform:translateX(80px)}100%{-webkit-transform:translateX(0px);transform:translateX(0px)}}
-        @keyframes snowflakes-fall{0%{top:-10%}100%{top:100%}}
-        @keyframes snowflakes-shake{0%{transform:translateX(0px)}50%{transform:translateX(80px)}100%{transform:translateX(0px)}}
-        .snowflake{position:fixed;top:-10%;z-index:9999;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;cursor:default;-webkit-animation-name:snowflakes-fall,snowflakes-shake;-webkit-animation-duration:10s,3s;-webkit-animation-timing-function:linear,ease-in-out;-webkit-animation-iteration-count:infinite,infinite;-webkit-animation-play-state:running,running;animation-name:snowflakes-fall,snowflakes-shake;animation-duration:10s,3s;animation-timing-function:linear,ease-in-out;animation-iteration-count:infinite,infinite;animation-play-state:running,running}
-        .snowflake:nth-of-type(0){left:1%;-webkit-animation-delay:0s,0s;animation-delay:0s,0s}
-        .snowflake:nth-of-type(1){left:10%;-webkit-animation-delay:1s,1s;animation-delay:1s,1s}
-        .snowflake:nth-of-type(2){left:20%;-webkit-animation-delay:6s,.5s;animation-delay:6s,.5s}
-        .snowflake:nth-of-type(3){left:30%;-webkit-animation-delay:4s,2s;animation-delay:4s,2s}
-        .snowflake:nth-of-type(4){left:40%;-webkit-animation-delay:2s,2s;animation-delay:2s,2s}
-        .snowflake:nth-of-type(5){left:50%;-webkit-animation-delay:8s,3s;animation-delay:8s,3s}
-        .snowflake:nth-of-type(6){left:60%;-webkit-animation-delay:6s,2s;animation-delay:6s,2s}
-        .snowflake:nth-of-type(7){left:70%;-webkit-animation-delay:2.5s,1s;animation-delay:2.5s,1s}
-        .snowflake:nth-of-type(8){left:80%;-webkit-animation-delay:1s,0s;animation-delay:1s,0s}
-        .snowflake:nth-of-type(9){left:90%;-webkit-animation-delay:3s,1.5s;animation-delay:3s,1.5s}
-        /* 绒绒感：模糊粒子 */
-        .fluff { width: 8px; height: 8px; background: white; border-radius: 50%; filter: blur(3px); display: inline-block; }
-        </style>
-        <div class="snowflakes" aria-hidden="true">
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff" style="width:12px;height:12px;filter:blur(5px);"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff" style="width:6px;height:6px;filter:blur(2px);"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff" style="width:10px;height:10px;filter:blur(4px);"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-          <div class="snowflake"><div class="fluff"></div></div>
-        </div>
-    """, unsafe_allow_html=True)
-
-st.set_page_config(page_title="情绪状态签", page_icon="🌙")
-
-# 3. AI 逻辑与提示词升级
-client = OpenAI(api_key=st.secrets["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
-
-st.title("🌙 情绪状态签")
-st.caption("认知觉醒 · 去病理化 · 灵魂重建")
-
-user_input = st.text_area("此刻你的内心波澜...", placeholder="描述越详细，语义分析越精准...", height=120)
-
-if st.button("生成状态签 🔮"):
-    if not user_input:
-        st.warning("请投入你的情绪碎片。")
+# 2. 视觉动效逻辑
+def apply_visual_effect(mood_type):
+    if mood_type == "fireflies":
+        st.markdown("""<style>.firefly { position: fixed; background: #ccff00; width: 4px; height: 4px; border-radius: 50%; box-shadow: 0 0 10px #ccff00; z-index: 9999; opacity: 0; animation: drift 10s infinite, flash 3s infinite; } @keyframes drift { 0% { transform: translate(0, 0); } 50% { transform: translate(100px, -100px); } 100% { transform: translate(-50px, -200px); } } @keyframes flash { 0%, 100% { opacity: 0; } 50% { opacity: 0.6; } }</style>""" + "".join([f'<div class="firefly" style="left:{random.randint(5,95)}%; top:{random.randint(10,90)}%; animation-delay:{random.randint(0,10)}s;"></div>' for _ in range(15)]), unsafe_allow_html=True)
+    elif mood_type == "balloons":
+        st.markdown("""<style>.balloon { position: fixed; bottom: -10%; width: 18px; height: 24px; background: rgba(173, 216, 230, 0.2); border-radius: 50%; z-index: 9999; animation: rise 15s infinite ease-in; } @keyframes rise { 0% { bottom: -10%; opacity: 0; } 20% { opacity: 0.5; } 100% { bottom: 110%; transform: translateX(50px); opacity: 0; } }</style>""" + "".join([f'<div class="balloon" style="left:{random.randint(5,95)}%; animation-delay:{random.randint(0,10)}s;"></div>' for _ in range(8)]), unsafe_allow_html=True)
     else:
-        with st.spinner("🧠 正在进行多维度语义建模..."):
+        st.markdown("""<style>.snowflake { position: fixed; top: -10%; z-index: 9999; animation: fall 12s infinite linear; } .fluff { width: 8px; height: 8px; background: white; border-radius: 50%; filter: blur(3px); opacity: 0.4; } @keyframes fall { 0% { top: -10%; opacity: 0; } 10% { opacity: 0.4; } 100% { top: 110%; transform: translateX(30px); opacity: 0; } }</style>""" + "".join([f'<div class="snowflake" style="left:{random.randint(5,95)}%; animation-delay:{random.randint(0,12)}s;"><div class="fluff"></div></div>' for _ in range(10)]), unsafe_allow_html=True)
+
+# 3. 全局样式：纯粹神秘感
+st.markdown("""
+    <style>
+    .main { background-color: #0a0b10; color: #d1d1d1; }
+    .stTextArea textarea { background-color: #161821; color: #ececec; border: 1px solid #2d3142; border-radius: 4px; font-size: 1.1rem; }
+    .stButton button { width: 100%; border-radius: 2px; background: #161821; color: #555; border: 1px solid #2d3142; letter-spacing: 4px; transition: 1s; padding: 12px; }
+    .stButton button:hover { border-color: #4facfe; color: #fff; background: #1a1d26; }
+    .result-card { background: #161821; padding: 40px; border-radius: 2px; border-left: 1px solid #4facfe; line-height: 2.2; margin-top: 30px; letter-spacing: 1.5px; }
+    .label-style { font-style: italic; color: #4facfe; font-size: 1.3rem; margin-bottom: 25px; display: block; border-bottom: 1px solid #222; padding-bottom: 10px; }
+    .insight-style { color: #aaa; font-size: 1.05rem; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🌑 Echoes of Soul")
+st.markdown("<p style='color: #333; font-style: italic; letter-spacing: 2px;'>“于静默处，听见冰山下的回响。”</p>", unsafe_allow_html=True)
+
+# 4. 核心逻辑
+client = OpenAI(api_key=ds_key, base_url="https://api.deepseek.com")
+user_input = st.text_area("", placeholder="描述那些无法言说的瞬息...", height=150)
+
+if st.button("EXCAVATE"):
+    if not user_input:
+        st.info("深渊需要回声。")
+    else:
+        with st.spinner("潜入深处..."):
             try:
-                # 提示词：要求包含 emoji、专业术语、分列排版
+                # 提示词强化：要求 AI 进行文学化的互文解读
                 prompt = f"""
-                用户内容：'{user_input}'
-                请生成一份【情绪状态签】。要求：
-                1. [今日标签]：4字以内 + 2个意境Emoji。
-                2. [心理维度]：使用1个核心心理学术语（如：防御机制、习得性无助、格式塔、认知失调等），并从‘认知觉醒’角度给出高级感解析。
-                3. [音频疗愈]：推荐一首适合歌曲名，并提供一个‘[去听歌]’的文字说明，链接网易云搜索。
-                4. [电影处方]：推荐一部高分治愈电影。
-                5. [状态语词]：用Emoji分行排列，给出3个情绪状态词。
+                用户自白：'{user_input}'
+                请作为一名具备极高文学素养和存在主义色彩的心理分析师进行解析。
+                要求：
+                1. [MOOD]：'sad'、'peaceful' 或 'happy'。
+                2. [刻印]：4字以内文学标签。
+                3. [灵魂嘴替]：
+                   - 结合一部经典电影或名曲，用文学化的语言描述用户的心情。
+                   - 语气示例：“此时此刻你的心情就如《重庆森林》中的...你迷惘，彷徨，你在找一个影子...”
+                   - 必须包含1个心理学专业术语进行“冰山下”的深度剖析。
+                4. [秘语]：一句充满神秘感、直击核心的话。
                 """
                 
                 res = client.chat.completions.create(
                     model="deepseek-chat",
-                    messages=[{"role": "system", "content": "你是一位拥有资深背景的心理咨询师，语言温柔但充满洞见，善于使用Emoji辅助表达。"},
+                    messages=[{"role": "system", "content": "你是一位不满足于平庸解读的灵魂捕手，擅长光影隐喻。"},
                               {"role": "user", "content": prompt}]
                 )
-                text = res.choices[0].message.content
+                raw_content = res.choices[0].message.content
                 
-                # 触发自定义“绒绒”雪花
-                trigger_soft_snow()
+                # 判定动效
+                mood_tag = raw_content.lower()[:50]
+                mood_type = "balloons" if "happy" in mood_tag else ("fireflies" if "peaceful" in mood_tag else "snow")
+                apply_visual_effect(mood_type)
 
-                # 界面展示
-                st.markdown(f"""
-                <div style="background: #1c1f26; padding: 25px; border-radius: 20px; border: 1px solid #4facfe; color: white; line-height: 1.8;">
-                    {text.replace('[', '<span style="color:#4facfe; font-weight:bold;">[').replace(']', ']</span>')}
-                </div>
-                """, unsafe_allow_html=True)
+                # 格式化输出内容
+                lines = raw_content.split('\n')
+                display_html = ""
+                for line in lines:
+                    if "[MOOD]" in line: continue
+                    if "[刻印]" in line:
+                        display_html += f'<span class="label-style">🔖 {line.replace("[刻印]：", "")}</span>'
+                    elif "[" in line:
+                        display_html += f'<p><b style="color:#4facfe;">{line[:line.find("]")+1]}</b><span class="insight-style">{line[line.find("]")+1:]}</span></p>'
+                    elif line.strip():
+                        display_html += f'<p class="insight-style">{line}</p>'
 
-                # 4. 海报生成
-                f_path = load_font()
-                img = Image.new('RGB', (600, 1000), color='#121212')
-                draw = ImageDraw.Draw(img)
-                draw.rectangle([20, 20, 580, 980], outline="#4facfe", width=2)
-                
-                try:
-                    t_font = ImageFont.truetype(f_path, 45) if f_path else ImageFont.load_default()
-                    c_font = ImageFont.truetype(f_path, 22) if f_path else ImageFont.load_default()
-                    
-                    draw.text((300, 100), "情绪状态签", font=t_font, fill="#4facfe", anchor="mm")
-                    
-                    y = 200
-                    for line in text.split('\n'):
-                        line = line.strip()
-                        if not line: continue
-                        color = "#4facfe" if "[" in line else "#ffffff"
-                        for i in range(0, len(line), 18):
-                            draw.text((60, y), line[i:i+18], font=c_font, fill=color)
-                            y += 42
-                        y += 10
-                except: pass
-
-                st.image(img, use_container_width=True)
-                
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                st.download_button("📥 保存这张卡片", buf.getvalue(), "soul_card.png", "image/png")
+                st.markdown(f'<div class="result-card">{display_html}</div>', unsafe_allow_html=True)
 
             except Exception as e:
-                st.error(f"分析中断：{e}")
+                st.error(f"连接断开，请重试: {e}")
 
-st.markdown("<br><center style='color:#555;'>✦ 万物皆有裂痕，那是光照进来的地方 ✦</center>", unsafe_allow_html=True)
+st.markdown("<br><br><p style='text-align: center; color: #222; font-size: 0.7em;'>V 9.0 | Silence is a mirror.</p>", unsafe_allow_html=True)
